@@ -11,6 +11,8 @@ import {
 } from "@raycast/api";
 import { getStories } from "./hackernews";
 import { Story } from "./types";
+import { greetings } from "swift:../swift";
+import { usePromise } from "@raycast/utils";
 
 const cache = new Cache();
 // Stories that the user clicked on
@@ -37,7 +39,15 @@ export default function Command() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stories, setStories] = useState<Story[]>([]);
+  const {
+    isLoading,
+    data,
+    error: e2,
+  } = usePromise(async () => {
+    return (await greetings(["Test Dummie", "Lorem Ipsum", "Json Query"])).join(" ");
+  });
 
+  console.log({ isLoading, data, error: e2 });
   // Memoize cache reads and parse operations
   const readStories = useMemo(() => {
     const cached = cache.get(readKey);
@@ -90,6 +100,11 @@ export default function Command() {
           .filter((story) => !seenStoriesMap.has(story.external_url))
           .map((story) => ({ story, seen: now }));
 
+        // Show a notification with the first title if there are unseen stories
+        if (unseenStories.length === 0) {
+          // todo
+        }
+
         // merge everything now with a seen prop
         const allStoriesSeen = [...seenStories, ...unseenStories].sort((a, b) => b.seen - a.seen);
         cache.set(seenKey, JSON.stringify(allStoriesSeen));
@@ -116,8 +131,9 @@ export default function Command() {
             });
             cache.set(readKey, JSON.stringify(Array.from(readStories)));
             // force update the icon
-            setStories((prev) => structuredClone(prev));
+            setStories((prev) => [...prev]);
           }}
+          shortcut={{ modifiers: ["cmd", "shift"], key: "m" }}
         />
         <MenuBarExtra.Item
           title="Open Preferences"
@@ -164,7 +180,7 @@ const MenuItems = ({ error, stories, setStories, readStories, points }: MenuItem
         readStories.add(story.external_url);
         cache.set(readKey, JSON.stringify(Array.from(readStories)));
         // force update the icon
-        setStories((prev) => structuredClone(prev));
+        setStories((prev) => [...prev]);
         open(story.external_url);
       }}
     />
