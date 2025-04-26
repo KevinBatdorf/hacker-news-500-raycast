@@ -8,15 +8,18 @@ import {
   Keyboard,
   Color,
   openExtensionPreferences,
+  environment,
 } from "@raycast/api";
 import { getStories } from "./hackernews";
 import { Story } from "./types";
-import { greetings } from "swift:../swift";
-import { usePromise } from "@raycast/utils";
+import { getFavicon } from "@raycast/utils";
+import { showNotification } from "./lib/show-notification";
 
 const cache = new Cache();
 // Stories that the user clicked on
 const readKey = "read-stories";
+// Stories we've sent a notification about
+const notifiedKey = "notified-stories";
 // Stories that we've seen over the past week.
 // If we've seen something more than 24 hours ago, we remove it
 // This allows for stories posted e.g. 3 days ago to hit 500 points today
@@ -35,22 +38,20 @@ function getShortcut(index: number) {
 }
 
 export default function Command() {
-  const { points } = getPreferenceValues<Preferences>();
+  const { points, enableNotifications, useStoryIcon } = getPreferenceValues<Preferences>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stories, setStories] = useState<Story[]>([]);
-  const {
-    isLoading,
-    data,
-    error: e2,
-  } = usePromise(async () => {
-    return (await greetings(["Test Dummie", "Lorem Ipsum", "Json Query"])).join(" ");
-  });
 
-  console.log({ isLoading, data, error: e2 });
   // Memoize cache reads and parse operations
   const readStories = useMemo(() => {
     const cached = cache.get(readKey);
+    return new Set(JSON.parse(cached ?? "[]") as string[]);
+  }, []);
+
+  // Used for managing notifications so the user is only notified once
+  const notifiedStories = useMemo(() => {
+    const cached = cache.get(notifiedKey);
     return new Set(JSON.parse(cached ?? "[]") as string[]);
   }, []);
 
@@ -91,7 +92,9 @@ export default function Command() {
     // cache the points we used
     cache.set(prefKey, points);
     getStories(points || "500", { cache })
-      .then((stories) => {
+      .then(async (stories) => {
+        // if (!stories) return
+
         const now = Date.now();
         const seenStoriesMap = new Map(seenStories.map((s) => [s.story.external_url, s]));
 
@@ -100,9 +103,20 @@ export default function Command() {
           .filter((story) => !seenStoriesMap.has(story.external_url))
           .map((story) => ({ story, seen: now }));
 
-        // Show a notification with the first title if there are unseen stories
-        if (unseenStories.length === 0) {
-          // todo
+        // Show a notification with the first story if there are unseen stories (and check there are seen stories to prevent notification on first load)
+        const show = unseenStories.length > 0 && seenStories.length > 0 && enableNotifications;
+        const { story: latest } = unseenStories?.[0] ?? {};
+        if (show && latest && !notifiedStories.has(latest.external_url)) {
+          // Only ever notify about a story once
+          notifiedStories.add(latest.external_url);
+          cache.set(notifiedKey, JSON.stringify(Array.from(notifiedStories)));
+          const icon = useStoryIcon ? await getFavicon(latest.url) : `${environment.assetsPath}/icon-128.png`;
+          await showNotification({
+            title: "Hacker News Top Stories",
+            message: latest.title,
+            icon,
+            url: latest.external_url,
+          });
         }
 
         // merge everything now with a seen prop
