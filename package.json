@@ -18,7 +18,7 @@
       "title": "Hacker News Top Stories Menu Bar",
       "description": "View recent Hacker News stories based on a configurable points threshold.",
       "mode": "menu-bar",
-      "interval": "15m"
+      "interval": "10m"
     }
   ],
   "preferences": [
