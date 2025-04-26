@@ -93,8 +93,6 @@ export default function Command() {
     cache.set(prefKey, points);
     getStories(points || "500", { cache })
       .then(async (stories) => {
-        // if (!stories) return
-
         const now = Date.now();
         const seenStoriesMap = new Map(seenStories.map((s) => [s.story.external_url, s]));
 
